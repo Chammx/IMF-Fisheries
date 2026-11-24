@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>IMF Fisheries Admin</title>
+  <style>
+    :root { color-scheme: dark; font: 15px/1.5 system-ui, sans-serif; background: #092b31; color: #eee; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1440px; margin: auto; padding: clamp(18px, 4vw, 40px); }
+    h1 { font-size: clamp(25px, 4vw, 38px); line-height: 1.15; }
+    h2 { font-size: 22px; }
+    .panel { padding: 22px; border: 1px solid #456; border-radius: 16px; background: #10373d; }
+    .login { max-width: 440px; margin: 8vh auto; }
+    label { display: grid; gap: 6px; font-size: 13px; font-weight: 650; }
+    input, select, textarea, button { border: 1px solid #60777b; border-radius: 8px; font: inherit; }
+    input, select, textarea { width: 100%; padding: 10px 12px; background: #fff; color: #10262e; }
+    textarea { min-height: 86px; resize: vertical; }
+    button { min-height: 42px; padding: 8px 14px; background: #d8c39a; color: #10262e; cursor: pointer; font-weight: 700; }
+    button:disabled { cursor: wait; opacity: .65; }
+    .stack { display: grid; gap: 14px; }
+    .toolbar { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
+    .toolbar label { min-width: 180px; }
+    .toolbar .grow { flex: 1; }
+    .toolbar .search { flex: 2; min-width: 240px; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+    .summary article { padding: 16px; border: 1px solid #456; border-radius: 12px; background: #0c3037; }
+    .summary strong { display: block; font-size: 28px; line-height: 1.1; color: #e5d0a7; }
+    .summary span { color: #b7c8ca; font-size: 13px; }
+    #status { min-height: 24px; margin: 16px 0; }
+    #status.error { color: #ffb4a9; }
+    .table-wrap { overflow: auto; border: 1px solid #456; border-radius: 12px; }
+    table { width: 100%; min-width: 1280px; border-collapse: collapse; background: #0c3037; }
+    th, td { padding: 12px; border-bottom: 1px solid #456; text-align: left; vertical-align: top; }
+    th { position: sticky; top: 0; background: #16414a; white-space: nowrap; }
+    td { max-width: 320px; overflow-wrap: anywhere; white-space: pre-line; }
+    td.notes { min-width: 220px; }
+    td.notes label + label { margin-top: 10px; }
+    .muted { color: #b7c8ca; }
+    [hidden] { display: none !important; }
+    @media (max-width: 600px) {
+      main { padding: 14px; }
+      .panel { padding: 16px; }
+      .toolbar button { width: 100%; }
+      .toolbar .search { min-width: 100%; }
+      .summary { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <a href="./" style="color:inherit;text-decoration:none">IMF Fisheries</a>
+      <h1>Export enquiry dashboard</h1>
+    </header>
+    <section id="loginPanel" class="panel login" aria-labelledby="loginTitle">
+      <h2 id="loginTitle">Admin sign in</h2>
+      <p class="muted">Use your server-configured admin account. The password is not stored in this page.</p>
+      <form id="loginForm" class="stack">
+        <label>Username
+          <input name="username" required maxlength="100" autocomplete="username">
+        </label>
+        <label>Password
+          <input name="password" type="password" required minlength="12" maxlength="256" autocomplete="current-password">
+        </label>
+        <button id="loginButton" type="submit">Sign in</button>
+      </form>
+    </section>
+    <section id="dashboard" hidden aria-label="Enquiries">
+      <div class="toolbar">
+        <label class="grow">Filter by status
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="new">New</option>
+            <option value="contacted">Contacted</option>
+            <option value="quoted">Quoted</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label class="search">Search enquiries
+          <input id="searchFilter" type="search" placeholder="Buyer, company, email, product or destination">
+        </label>
+        <button id="refreshButton" type="button">Refresh enquiries</button>
+        <button id="logoutButton" type="button">Secure logout</button>
+      </div>
+      <div class="summary" aria-label="Enquiry counts">
+        <article><strong id="newCount">0</strong><span>New enquiries</span></article>
+        <article><strong id="contactedCount">0</strong><span>Contacted</span></article>
+        <article><strong id="completedCount">0</strong><span>Completed / closed</span></article>
+      </div>
+      <div id="status" role="status" aria-live="polite"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Received</th>
+              <th>Buyer / company</th>
+              <th>Business contact</th>
+              <th>Buyer / destination</th>
+              <th>Product / quantity</th>
+              <th>Packaging / requirements</th>
+              <th>Message</th>
+              <th>Status / follow-up / internal notes</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+    <div id="feedback" role="status" aria-live="polite"></div>
+  </main>
+  <script src="./config.js"></script>
+  <script>
+    const apiUrl = (window.IMF_API_URL ?? "").replace(/\/$/, "");
+    const loginPanel = document.querySelector("#loginPanel");
+    const loginForm = document.querySelector("#loginForm");
+    const dashboard = document.querySelector("#dashboard");
+    const loginButton = document.querySelector("#loginButton");
+    const feedback = document.querySelector("#feedback");
+    const status = document.querySelector("#status");
+    const rows = document.querySelector("#rows");
+    const statuses = ["new", "contacted", "quoted", "closed"];
+    let allEnquiries = [];
+
+    async function request(path, options = {}) {
+      const response = await fetch(`${apiUrl}${path}`, {
+        ...options,
+        credentials: "include",
+        headers: {
+          ...(options.body ? { "Content-Type": "application/json" } : {}),
+          ...options.headers,
+        },
+      });
+      if (response.status === 204) return null;
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const error = new Error(body.error || `Request failed (${response.status}).`);
+        error.status = response.status;
+        throw error;
+      }
+      return body;
+    }
+
+    function showLogin(message = "") {
+      loginPanel.hidden = false;
+      dashboard.hidden = true;
+      if (message) feedback.textContent = message;
+    }
+
+    function showDashboard() {
+      loginPanel.hidden = true;
+      dashboard.hidden = false;
+      feedback.textContent = "";
+    }
+
+    function cell(value) {
+      const element = document.createElement("td");
+      element.textContent = value || "—";
+      return element;
+    }
+
+    function labelInput(text, input) {
+      const label = document.createElement("label");
+      label.textContent = text;
+      label.append(input);
+      return label;
+    }
+
+    function datetimeValue(value) {
+      if (!value) return "";
+      const date = new Date(value);
+      if (Number.isNaN(date.valueOf())) return "";
+      return new Date(date.valueOf() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    }
+
+    function renderEnquiry(enquiry) {
+      const row = document.createElement("tr");
+      row.append(
+        cell(new Date(enquiry.created_at).toLocaleString()),
+        cell(`${enquiry.name}\n${enquiry.company}`),
+        cell(`${enquiry.email}\n${enquiry.phone}`),
+        cell(`${enquiry.country}\nDestination: ${enquiry.destination}`),
+        cell(`${enquiry.enquiry_type}\n${enquiry.product}\nQuantity: ${enquiry.quantity}`),
+        cell(`${enquiry.packaging || "Packaging not specified"}\n${enquiry.requirements || ""}`),
+        cell(enquiry.message),
+      );
+
+      const management = document.createElement("td");
+      management.className = "notes";
+      const statusSelect = document.createElement("select");
+      statusSelect.setAttribute("aria-label", `Status for ${enquiry.name}`);
+      statuses.forEach((value) => {
+        const option = document.createElement("option");
+        option.value = value;
+        option.textContent = value;
+        statusSelect.append(option);
+      });
+      statusSelect.value = statuses.includes(enquiry.status) ? enquiry.status : "new";
+
+      const followUp = document.createElement("input");
+      followUp.type = "datetime-local";
+      followUp.value = datetimeValue(enquiry.follow_up_at);
+      followUp.setAttribute("aria-label", `Follow-up date for ${enquiry.name}`);
+
+      const notes = document.createElement("textarea");
+      notes.maxLength = 5000;
+      notes.value = enquiry.internal_notes || "";
+      notes.setAttribute("aria-label", `Internal notes for ${enquiry.name}`);
+
+      const save = document.createElement("button");
+      save.type = "button";
+      save.textContent = "Save update";
+      save.addEventListener("click", async () => {
+        save.disabled = true;
+        save.textContent = "Saving…";
+        try {
+          await request(`/api/admin/enquiries/${encodeURIComponent(enquiry.id)}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              status: statusSelect.value,
+              internal_notes: notes.value,
+              follow_up_at: followUp.value ? new Date(followUp.value).toISOString() : null,
+            }),
+          });
+          setStatus("Enquiry updated.");
+        } catch (error) {
+          if (error.status === 401) showLogin("Your admin session has expired. Sign in again.");
+          setStatus(error.message, true);
+        } finally {
+          save.disabled = false;
+          save.textContent = "Save update";
+        }
+      });
+
+      management.append(
+        labelInput("Status", statusSelect),
+        labelInput("Follow-up", followUp),
+        labelInput("Internal notes", notes),
+        save,
+      );
+      row.append(management);
+      return row;
+    }
+
+    function setStatus(message, isError = false) {
+      status.textContent = message;
+      status.classList.toggle("error", isError);
+    }
+
+    function renderVisibleEnquiries() {
+      const statusFilter = document.querySelector("#statusFilter").value;
+      const search = document.querySelector("#searchFilter").value.trim().toLocaleLowerCase();
+      const visible = allEnquiries.filter((enquiry) => {
+        const matchesStatus = !statusFilter || enquiry.status === statusFilter;
+        const matchesSearch = !search || [
+          enquiry.name, enquiry.company, enquiry.email, enquiry.phone, enquiry.country,
+          enquiry.destination, enquiry.product, enquiry.quantity, enquiry.message,
+        ].some((value) => String(value || "").toLocaleLowerCase().includes(search));
+        return matchesStatus && matchesSearch;
+      });
+      rows.replaceChildren(...visible.map(renderEnquiry));
+      setStatus(`${visible.length} of ${allEnquiries.length} recent enquiries shown.`);
+    }
+
+    async function loadEnquiries() {
+      setStatus("Loading export enquiries…");
+      rows.replaceChildren();
+      const suffix = "";
+      try {
+        const enquiries = await request(`/api/admin/enquiries${suffix}`);
+        allEnquiries = enquiries;
+        document.querySelector("#newCount").textContent = enquiries.filter((item) => item.status === "new").length;
+        document.querySelector("#contactedCount").textContent = enquiries.filter((item) => item.status === "contacted").length;
+        document.querySelector("#completedCount").textContent = enquiries.filter((item) => ["closed", "quoted"].includes(item.status)).length;
+        renderVisibleEnquiries();
+      } catch (error) {
+        if (error.status === 401) showLogin("Your admin session has expired. Sign in again.");
+        setStatus(error.message, true);
+      }
+    }
+
+    loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      loginButton.disabled = true;
+      loginButton.textContent = "Signing in…";
+      feedback.textContent = "";
+      try {
+        await request("/api/admin/login", {
+          method: "POST",
+          body: JSON.stringify(Object.fromEntries(new FormData(loginForm).entries())),
+        });
+        loginForm.reset();
+        showDashboard();
+        await loadEnquiries();
+      } catch (error) {
+        feedback.textContent = error.message || "Sign in failed.";
+      } finally {
+        loginButton.disabled = false;
+        loginButton.textContent = "Sign in";
+      }
+    });
+
+    document.querySelector("#refreshButton").addEventListener("click", loadEnquiries);
+    document.querySelector("#statusFilter").addEventListener("change", renderVisibleEnquiries);
+    document.querySelector("#searchFilter").addEventListener("input", renderVisibleEnquiries);
+    document.querySelector("#logoutButton").addEventListener("click", async () => {
+      try {
+        await request("/api/admin/logout", { method: "POST" });
+        rows.replaceChildren();
+        showLogin("You have been securely signed out.");
+        setStatus("");
+      } catch (error) {
+        setStatus(error.message || "Logout failed.", true);
+      }
+    });
+
+    request("/api/admin/session")
+      .then(async () => {
+        showDashboard();
+        await loadEnquiries();
+      })
+      .catch((error) => {
+        showLogin(error.status === 401 ? "" : error.message);
+      });
+  </script>
+</body>
+</html>

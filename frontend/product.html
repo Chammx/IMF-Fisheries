@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Seafood product enquiry | IMF Fisheries</title>
+  <style>
+    :root { color-scheme: light; font: 16px/1.65 system-ui, sans-serif; background: #f4f1ea; color: #10262e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 900px; margin: auto; padding: clamp(24px, 6vw, 72px) 20px; }
+    a { color: inherit; }
+    .brand { font: 26px Georgia, serif; text-decoration: none; }
+    .eyebrow { margin-top: 54px; color: #5d6e73; font-size: 13px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
+    h1, h2 { font-family: Georgia, serif; font-weight: 400; line-height: 1.04; }
+    h1 { margin: 12px 0 20px; font-size: clamp(46px, 8vw, 88px); }
+    h2 { margin-top: 48px; font-size: 34px; }
+    p { max-width: 720px; }
+    .summary { color: #5d6e73; font-size: 19px; }
+    table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 16px; background: #fffdf8; }
+    th, td { padding: 14px 16px; border-bottom: 1px solid rgba(16, 38, 46, .14); text-align: left; vertical-align: top; }
+    th { width: 35%; }
+    tr:last-child th, tr:last-child td { border-bottom: 0; }
+    .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 28px; }
+    .button { display: inline-block; padding: 13px 20px; border-radius: 99px; background: #d8c39a; color: #2a2112; font-weight: 700; text-decoration: none; }
+    .button.secondary { border: 1px solid #10262e; background: transparent; color: #10262e; }
+    .note { margin-top: 26px; color: #5d6e73; font-size: 14px; }
+    @media (max-width: 600px) { th, td { padding: 12px 10px; } th { width: 42%; } }
+  </style>
+</head>
+<body>
+  <main>
+    <a class="brand" href="./">IMF Fisheries</a>
+    <p class="eyebrow">Seafood export enquiries · India</p>
+    <h1 id="productName">Product category</h1>
+    <p id="productDescription" class="summary"></p>
+    <h2>Buyer specification checklist</h2>
+    <p>These are enquiry prompts, not claims of stocked ranges or fixed product specifications. Confirm all details for the requested lot before any offer or order.</p>
+    <table><tbody id="specifications"></tbody></table>
+    <div class="actions">
+      <a id="quoteLink" class="button" href="./#contact">Request a quotation</a>
+      <a class="button secondary" href="./#seafood">View all product categories</a>
+    </div>
+    <p class="note">IMF Fisheries · Ullal, Mangaluru, Karnataka, India. Certifications, destination-market approvals, availability, logistics and shipping terms are confirmed only when applicable to a specific transaction.</p>
+  </main>
+  <script type="module">
+    import { products } from "./products.js";
+    const slug = new URLSearchParams(location.search).get("product");
+    const product = products.find((item) => item.slug === slug);
+    if (product) {
+      document.title = `${product.name} export enquiry | IMF Fisheries`;
+      document.querySelector("#productName").textContent = product.name;
+      document.querySelector("#productDescription").textContent = product.description;
+      document.querySelector("#quoteLink").href = `./?product=${encodeURIComponent(product.slug)}#contact`;
+      const body = document.querySelector("#specifications");
+      body.replaceChildren(...product.specifications.map(([label, value]) => {
+        const row = document.createElement("tr");
+        const heading = document.createElement("th");
+        heading.scope = "row";
+        heading.textContent = label;
+        const detail = document.createElement("td");
+        detail.textContent = value;
+        row.append(heading, detail);
+        return row;
+      }));
+    } else {
+      document.querySelector("#productName").textContent = "Product category not found";
+      document.querySelector("#productDescription").textContent = "Return to the product categories and choose a seafood enquiry.";
+    }
+  </script>
+</body>
+</html>
