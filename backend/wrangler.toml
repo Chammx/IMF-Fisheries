@@ -1,0 +1,33 @@
+name = "imf-fisheries-api"
+main = "worker.js"
+compatibility_date = "2026-11-25"
+compatibility_flags = ["nodejs_compat", "nodejs_compat_populate_process_env"]
+workers_dev = true
+upload_source_maps = true
+
+[vars]
+NODE_ENV = "production"
+# Change this to the exact Pages preview or production origin before deploying.
+FRONTEND_ORIGIN = "https://imf-fisheries.pages.dev"
+
+[observability]
+enabled = true
+
+[triggers]
+crons = ["0 4 * * *"]
+
+[[ratelimits]]
+name = "ENQUIRY_BURST_LIMIT"
+namespace_id = "91352701"
+
+  [ratelimits.simple]
+  limit = 10
+  period = 60
+
+[[ratelimits]]
+name = "ADMIN_LOGIN_BURST_LIMIT"
+namespace_id = "91352702"
+
+  [ratelimits.simple]
+  limit = 5
+  period = 60

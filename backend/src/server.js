@@ -1,8 +1,7 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { MemoryStore } from 'express-rate-limit';
 import { z } from 'zod';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'node:crypto';
@@ -21,6 +20,20 @@ const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);
 app.use(helmet());
+app.use((req, res, next) => {
+  const startedAt = Date.now();
+  res.on('finish', () => {
+    console.log(JSON.stringify({
+      level: 'info',
+      event: 'http_request',
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - startedAt,
+    }));
+  });
+  next();
+});
 
 const localOrigins = new Set([
   'http://localhost:5173',
@@ -46,7 +59,74 @@ app.use(cors({
   methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type'],
 }));
-app.use(express.json({ limit: '20kb' }));
+
+function jsonBodyParser(limitBytes = 20 * 1024) {
+  return (req, _res, next) => {
+    const contentType = String(req.headers['content-type'] || '')
+      .split(';', 1)[0]
+      .trim()
+      .toLowerCase();
+    if (contentType !== 'application/json') {
+      next();
+      return;
+    }
+
+    const declaredLength = Number(req.headers['content-length']);
+    if (Number.isFinite(declaredLength) && declaredLength > limitBytes) {
+      req.resume();
+      next(Object.assign(new Error('Request entity too large'), { type: 'entity.too.large' }));
+      return;
+    }
+
+    const chunks = [];
+    let size = 0;
+    let tooLarge = false;
+    req.on('data', (chunk) => {
+      size += chunk.length;
+      if (size > limitBytes) {
+        tooLarge = true;
+        chunks.length = 0;
+      } else if (!tooLarge) {
+        chunks.push(chunk);
+      }
+    });
+    req.on('error', next);
+    req.on('end', () => {
+      if (tooLarge) {
+        next(Object.assign(new Error('Request entity too large'), { type: 'entity.too.large' }));
+        return;
+      }
+      if (size === 0) {
+        req.body = {};
+        next();
+        return;
+      }
+      try {
+        req.body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        next();
+      } catch {
+        next(Object.assign(new SyntaxError('Invalid JSON request body'), { body: true }));
+      }
+    });
+  };
+}
+
+// express-rate-limit's default MemoryStore runs a setInterval, which Workers
+// forbid at module scope. Keep its windowed counter behavior without a timer;
+// expired buckets are swept opportunistically as traffic arrives.
+class WorkerSafeMemoryStore extends MemoryStore {
+  init(options) {
+    this.windowMs = options.windowMs;
+  }
+
+  async increment(key) {
+    this.sweepCount = (this.sweepCount || 0) + 1;
+    if (this.sweepCount % 100 === 0) this.clearExpired();
+    return super.increment(key);
+  }
+}
+
+app.use(jsonBodyParser());
 
 const enquirySchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -108,6 +188,12 @@ function createSupabaseClient() {
 
 const supabase = createSupabaseClient();
 
+export async function checkSupabaseActivity() {
+  if (!supabase) throw new Error('Supabase is not configured.');
+  const { error } = await supabase.from('enquiries').select('id').limit(1);
+  if (error) throw error;
+}
+
 function isAdminConfigured() {
   const hash = process.env.ADMIN_PASSWORD_HASH || '';
   const sessionSecret = process.env.ADMIN_SESSION_SECRET || '';
@@ -151,6 +237,7 @@ app.post('/api/enquiries', rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many enquiries. Please try again later.' },
+  store: new WorkerSafeMemoryStore(),
 }), async (req, res) => {
   const parsed = enquirySchema.safeParse(req.body);
   if (!parsed.success) {
@@ -198,6 +285,7 @@ const loginRateLimit = rateLimit({
   standardHeaders: 'draft-7',
   legacyHeaders: false,
   message: { error: 'Too many sign-in attempts. Please try again later.' },
+  store: new WorkerSafeMemoryStore(),
 });
 
 app.post('/api/admin/login', loginRateLimit, async (req, res) => {

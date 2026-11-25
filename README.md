@@ -4,12 +4,12 @@ International B2B seafood export enquiry website for overseas importers, distrib
 
 ## Project layout
 
-- `frontend/` — public homepage, RFQ, product landing pages generated at build, admin dashboard, and Vercel API proxy.
-- `backend/` — Express API, validation, server-side Supabase access, admin sessions, and Railway configuration.
+- `frontend/` — public homepage, RFQ, product landing pages generated at build, admin dashboard, and same-origin Vercel/Cloudflare API proxies.
+- `backend/` — Express API, validation, server-side Supabase access, admin sessions, Railway configuration, and Cloudflare Workers entry/configuration.
 - `supabase/schema.sql` — enquiry schema and upgrade-safe RFQ/admin tracking columns.
 
-See `DEPLOYMENT.md` for environment setup and deployment. Product specifications, availability, certifications, approvals, and logistics commitments are not invented; confirm them before publishing verified company information.
+See `DEPLOYMENT.md` for the ₹0/month Cloudflare Pages + Workers + existing Supabase starting architecture, its actual limits, setup instructions, and launch checks. Free tiers do not provide a production uptime commitment or automatic Supabase backups; export enquiry data regularly and do not rely on this setup for records that cannot be lost. Product specifications, availability, certifications, approvals, and logistics commitments are not invented; confirm them before publishing verified company information.
 
 ### External setup still required
 
-Public launch and live database testing require Supabase project credentials, the SQL schema to be applied, and Vercel/Railway account authorization. Keep all backend secrets in Railway environment variables and never in frontend code or Vercel public variables.
+Preview deployment and live database testing require Cloudflare account access and existing Supabase credentials entered directly into Cloudflare's secret manager. The production domain remains on GoDaddy; changing DNS, publishing the domain, or applying database migrations requires separate approval. Keep all backend secrets in server-side secret managers and never in frontend code or public frontend build variables.

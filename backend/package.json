@@ -4,8 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "start": "node --import dotenv/config src/server.js",
+    "dev": "node --import dotenv/config --watch src/server.js",
+    "deploy:worker": "wrangler deploy",
+    "worker:dev": "wrangler dev",
     "test": "node --test",
     "hash-admin-password": "node scripts/hash-admin-password.js"
   },
@@ -17,5 +19,11 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "wrangler": "^4.50.0"
+  },
+  "overrides": {
+    "iconv-lite": "^0.7.0"
   }
 }

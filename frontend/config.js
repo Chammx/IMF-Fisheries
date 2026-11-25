@@ -1,4 +1,4 @@
-// Local development calls the API directly; Vercel builds use a same-origin API proxy.
+// Local development may call the API directly; production uses the same-origin hosting proxy.
 // Never put Supabase keys, admin passwords, or session secrets in frontend configuration.
 window.IMF_API_URL =
   window.IMF_API_URL ??

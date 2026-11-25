@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   createAdminSession,
   createPasswordHash,
+  setAdminSessionCookie,
   verifyAdminSession,
 } from '../src/admin-auth.js';
 
@@ -90,6 +91,24 @@ test('rejects missing destination, quantity, or business information', async () 
     body: JSON.stringify({ ...validEnquiry, destination: '', company: '' }),
   });
   assert.equal(response.status, 400);
+});
+
+test('returns clear errors for malformed and oversized JSON bodies', async () => {
+  const malformed = await fetch(`${baseUrl}/api/enquiries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: '{"name":',
+  });
+  assert.equal(malformed.status, 400);
+  assert.equal((await malformed.json()).error, 'Invalid JSON request body.');
+
+  const oversized = await fetch(`${baseUrl}/api/enquiries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...validEnquiry, message: 'x'.repeat(21 * 1024) }),
+  });
+  assert.equal(oversized.status, 413);
+  assert.equal((await oversized.json()).error, 'Request is too large.');
 });
 
 test('valid RFQs are not reported as stored when Supabase is not configured', async () => {
@@ -191,4 +210,16 @@ test('signed sessions reject tampering and expired sessions', () => {
   assert.equal(verifyAdminSession(token, process.env.ADMIN_SESSION_SECRET, 1_000_001).sub, 'test-admin');
   assert.equal(verifyAdminSession(token, process.env.ADMIN_SESSION_SECRET, 99_000_000), null);
   assert.equal(verifyAdminSession(`${token}x`, process.env.ADMIN_SESSION_SECRET, 1_000_001), null);
+});
+
+test('production admin cookies require HTTPS and use same-site protection', () => {
+  const previousEnvironment = process.env.NODE_ENV;
+  process.env.NODE_ENV = 'production';
+  const headers = {};
+  setAdminSessionCookie({ setHeader: (name, value) => { headers[name] = value; } }, { secure: false }, 'session');
+  process.env.NODE_ENV = previousEnvironment;
+
+  assert.match(headers['Set-Cookie'], /Secure/i);
+  assert.match(headers['Set-Cookie'], /SameSite=Lax/i);
+  assert.doesNotMatch(headers['Set-Cookie'], /SameSite=None/i);
 });

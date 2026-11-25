@@ -456,7 +456,7 @@ Object.entries(validators).forEach(([name,[check,error]])=>{if(!validateField(na
 if(!valid){msg.className="bad";msg.textContent="Please review the highlighted RFQ fields.";f.querySelector('[aria-invalid="true"]')?.focus();return}
 const payload=Object.fromEntries(new FormData(f).entries());
 const button=f.querySelector('button[type="submit"]');button.disabled=true;button.setAttribute("aria-busy","true");button.textContent="Sending RFQ…";
-try{const apiUrl=(window.IMF_API_URL||"").replace(/\/$/,"");if(!apiUrl)throw new Error("The export enquiry service is not configured yet. Please try again later.");
+try{const apiUrl=(window.IMF_API_URL||"").replace(/\/$/,"");
 const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),20000);
 let res,result;
 try{res=await fetch(apiUrl+"/api/enquiries",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload),signal:controller.signal});result=await res.json().catch(()=>({}));}finally{clearTimeout(timeout)}

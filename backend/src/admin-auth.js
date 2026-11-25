@@ -76,26 +76,24 @@ export function getAdminSessionCookie(req) {
 
 export function setAdminSessionCookie(res, req, token) {
   const secure = process.env.NODE_ENV === 'production' || req.secure;
-  const sameSite = secure ? 'None' : 'Lax';
   res.setHeader('Set-Cookie', [
     `${SESSION_COOKIE}=${encodeURIComponent(token)}`,
     'Path=/api/admin',
     `Max-Age=${SESSION_LIFETIME_SECONDS}`,
     'HttpOnly',
-    `SameSite=${sameSite}`,
+    'SameSite=Lax',
     ...(secure ? ['Secure'] : []),
   ].join('; '));
 }
 
 export function clearAdminSessionCookie(res, req) {
   const secure = process.env.NODE_ENV === 'production' || req.secure;
-  const sameSite = secure ? 'None' : 'Lax';
   res.setHeader('Set-Cookie', [
     `${SESSION_COOKIE}=`,
     'Path=/api/admin',
     'Max-Age=0',
     'HttpOnly',
-    `SameSite=${sameSite}`,
+    'SameSite=Lax',
     ...(secure ? ['Secure'] : []),
   ].join('; '));
 }

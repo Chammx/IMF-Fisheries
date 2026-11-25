@@ -39,7 +39,6 @@ function jsonForHtml(value) {
   return JSON.stringify(value).replace(/</g, '\\u003c');
 }
 
-requiredOrigin(process.env.IMF_API_URL?.trim(), 'IMF_API_URL');
 const rawSiteUrl = process.env.SITE_URL?.trim()
   || process.env.VERCEL_PROJECT_PRODUCTION_URL
   || process.env.VERCEL_URL;
@@ -165,6 +164,10 @@ await Promise.all([
   writeFile(
     path.join(output, 'robots.txt'),
     `User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n`,
+  ),
+  writeFile(
+    path.join(output, '_headers'),
+    `/*\n  X-Content-Type-Options: nosniff\n  X-Frame-Options: DENY\n  Referrer-Policy: strict-origin-when-cross-origin\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n`,
   ),
   writeFile(
     path.join(output, 'sitemap.xml'),
